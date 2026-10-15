@@ -1,0 +1,14 @@
+services:
+  api:
+    build: ./api
+    image: web-ois-api:local
+    container_name: web-ois-api
+    working_dir: /app
+    command: fastapi dev app/main.py --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app
+      - /app/.venv
+    environment:
+      WATCHFILES_FORCE_POLLING: "true"
