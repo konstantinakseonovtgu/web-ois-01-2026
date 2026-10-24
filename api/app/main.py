@@ -1,27 +1,20 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
+
+from app.routers import catalog, events, system
+
+TAGS = [
+    {"name": "Мероприятия", "description": "Афиша: создание, просмотр, изменение и удаление."},
+    {"name": "Справочники", "description": "Клубы и аудитории."},
+    {"name": "Служебное", "description": "Проверка, что сервис жив."},
+]
 
 app = FastAPI(
     title="WEB-ОИС API",
-    description="API студенческой афиши мероприятий",
-    version="0.1.0"
+    description="API студенческой афиши мероприятий. Бизнес-правила BR-1…BR-10 — в docs/tz.md.",
+    version="0.2.0",
+    openapi_tags=TAGS,
 )
 
-EVENTS = [
-    {"id": 1, "title": "Как устроен поиск Яндекса", "club": "IT-клуб", "room": "Аудитория 203"},
-    {"id": 2, "title": "Турнир по шахматам", "club": "Шахматный клуб", "room": "Аудитория 311"}
-]
-
-@app.get("/api/health")
-def health():
-    return { "status": "ok" }
-
-@app.get("/api/events")
-def list_events():
-    return EVENTS
-
-@app.get("/api/events/{event_id}")
-def get_event(event_id: int):
-    for event in EVENTS:
-        if event["id"] == event_id:
-            return event
-    raise HTTPException(status_code=404, detail="Мероприятие не найдено")
+app.include_router(system.router)
+app.include_router(catalog.router)
+app.include_router(events.router)

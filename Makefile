@@ -24,7 +24,7 @@ ps:
 	docker compose ps
 
 exec:
-	docker compose run --rm --no-deps api sh
+	docker compose run --rm --no-deps api bash
 
 pull:
 	docker compose pull
