@@ -10,5 +10,23 @@ services:
     volumes:
       - ./api:/app
       - /app/.venv
-    environment:
-      WATCHFILES_FORCE_POLLING: "true"
+    env_file: .env
+
+  db:
+    image: postgres:18
+    container_name: web-ois-db
+    command: postgres -c timezone=Asia/Tomsk
+    env_file: .env
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql
+      - ./db:/db:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webois -d webois"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db-data:

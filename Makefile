@@ -29,3 +29,26 @@ exec:
 pull:
 	docker compose pull
 
+# API
+
+api-up:
+	docker compose up -d api
+
+# БД
+
+bd-up:
+	docker compose up -d bd
+
+psql:
+	docker compose exec db psql -U webois -d webois
+
+db-schema:
+	docker compose exec db psql -U webois -d webois -v ON_ERROR_STOP=1 -f /db/schema.sql
+
+db-drop:
+	docker compose exec db psql -U webois -d webois -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+
+db-seed:
+	docker compose exec db psql -U webois -d webois -v ON_ERROR_STOP=1 -f /db/seed.sql
+
+db-reset: db-drop db-schema db-seed
