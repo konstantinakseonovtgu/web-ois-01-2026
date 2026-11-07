@@ -1,12 +1,16 @@
-from pydantic import AwareDatetime, BaseModel, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, model_validator, ConfigDict
 
 
 class Club(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
 
 
 class Room(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     building: str

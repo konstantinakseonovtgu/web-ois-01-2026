@@ -1,10 +1,14 @@
-from datetime import date
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import ValidationError
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from app import storage
+from app.db import SessionDep, violated_constraint
+from app.models import Club, Event, Room
 from app.schemas import ErrorResponse, EventCreate, EventPage, EventRead, EventUpdate
 
 router = APIRouter(prefix="/api/events", tags=["Мероприятия"])
@@ -12,64 +16,90 @@ router = APIRouter(prefix="/api/events", tags=["Мероприятия"])
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Мероприятие не найдено"}}
 CONFLICT = {409: {"model": ErrorResponse, "description": "Нарушено бизнес-правило (BR-1, BR-6)"}}
 
+TOMSK = timezone(timedelta(hours=7))  # часовой пояс вуза: границы дат в фильтрах
+ACTIVE = ("pending", "published")     # статусы, при которых мероприятие держит аудиторию
 
-def get_event_or_404(event_id: int) -> dict:
-    event = storage.EVENTS.get(event_id)
+
+def get_event_or_404(session: Session, event_id: int) -> Event:
+    event = session.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Мероприятие не найдено")
     return event
 
 
-def check_business_rules(data: dict, event_id: int | None = None) -> None:
-    if data["club_id"] not in storage.CLUBS:
+def check_business_rules(session: Session, data: dict, event_id: int | None = None) -> Club:
+    club = session.get(Club, data["club_id"])
+    if club is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Клуба {data['club_id']} нет")
-    room = storage.ROOMS.get(data["room_id"])
+    room = session.get(Room, data["room_id"])
     if room is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Аудитории {data['room_id']} нет")
 
-    # BR-6: мест не больше, чем вмещает аудитория
-    if data["capacity"] > room["capacity"]:
+    if data["capacity"] > room.capacity:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"Аудитория «{room['name']}» вмещает {room['capacity']} человек, а указано {data['capacity']}",
+            f"Аудитория «{room.name}» вмещает {room.capacity} человек, а указано {data['capacity']}",
         )
 
-    # BR-1: аудитория не занята в это время
-    for other in storage.EVENTS.values():
-        if other["id"] == event_id or other["room_id"] != data["room_id"]:
-            continue
-        if data["starts_at"] < other["ends_at"] and other["starts_at"] < data["ends_at"]:
+    query = select(Event).where(
+        Event.room_id == data["room_id"],
+        Event.status.in_(ACTIVE),
+        Event.starts_at < data["ends_at"],
+        Event.ends_at > data["starts_at"],
+        )
+    if event_id is not None:
+        query = query.where(Event.id != event_id)
+    other = session.scalars(query.limit(1)).first()
+    if other is not None:
+        start = other.starts_at.astimezone(TOMSK)
+        end = other.ends_at.astimezone(TOMSK)
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Аудитория «{room.name}» занята: {other.title}, {start:%d.%m %H:%M}–{end:%H:%M}",
+        )
+    return club
+
+
+def commit_or_409(session: Session) -> None:
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        if violated_constraint(exc) == "events_room_no_overlap":
             raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                f"Аудитория «{room['name']}» занята: {other['title']}, "
-                f"{other['starts_at']:%d.%m %H:%M}–{other['ends_at']:%H:%M}",
-            )
+                status.HTTP_409_CONFLICT, "Аудиторию только что заняли на это время"
+            ) from exc
+        raise
 
 
-@router.get("", response_model=EventPage, summary="Список мероприятий")
+@router.get("", response_model=EventPage, summary="Афиша")
 def list_events(
-    club_id: Annotated[int | None, Query(description="Только мероприятия этого клуба")] = None,
-    date_from: Annotated[date | None, Query(description="Начиная с даты, включительно")] = None,
-    date_to: Annotated[date | None, Query(description="По дату, включительно")] = None,
-    page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
-    size: Annotated[int, Query(ge=1, le=100, description="Мероприятий на странице")] = 20,
+        session: SessionDep,
+        club_id: Annotated[int | None, Query(description="Только мероприятия этого клуба")] = None,
+        date_from: Annotated[date | None, Query(description="Начиная с даты, включительно")] = None,
+        date_to: Annotated[date | None, Query(description="По дату, включительно")] = None,
+        page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
+        size: Annotated[int, Query(ge=1, le=100, description="Мероприятий на странице")] = 20,
 ):
-    """Мероприятия по возрастанию времени начала. Фильтры можно сочетать."""
-    events = sorted(storage.EVENTS.values(), key=lambda e: e["starts_at"])
+    query = select(Event).where(Event.status == "published")
     if club_id is not None:
-        events = [e for e in events if e["club_id"] == club_id]
+        query = query.where(Event.club_id == club_id)
     if date_from is not None:
-        events = [e for e in events if e["starts_at"].date() >= date_from]
+        query = query.where(Event.starts_at >= datetime.combine(date_from, time.min, TOMSK))
     if date_to is not None:
-        events = [e for e in events if e["starts_at"].date() <= date_to]
+        next_day = date_to + timedelta(days=1)
+        query = query.where(Event.starts_at < datetime.combine(next_day, time.min, TOMSK))
 
-    start = (page - 1) * size
-    return {"items": events[start : start + size], "total": len(events), "page": page, "size": size}
+    total = session.scalar(select(func.count()).select_from(query.subquery()))
+    items = session.scalars(
+        query.order_by(Event.starts_at, Event.id).offset((page - 1) * size).limit(size)
+    ).all()
+    return {"items": items, "total": total, "page": page, "size": size}
 
 
 @router.get("/{event_id}", response_model=EventRead, responses=NOT_FOUND, summary="Одно мероприятие")
-def get_event(event_id: int):
-    return get_event_or_404(event_id)
+def get_event(event_id: int, session: SessionDep):
+    return get_event_or_404(session, event_id)
 
 
 @router.post(
@@ -79,12 +109,17 @@ def get_event(event_id: int):
     responses=CONFLICT,
     summary="Создать мероприятие",
 )
-def create_event(payload: EventCreate):
-    """Проверяет, что аудитория свободна (BR-1) и вмещает всех участников (BR-6)."""
+def create_event(payload: EventCreate, session: SessionDep):
+    """Новое мероприятие получает статус «на модерации» (BR-9). Проверяются BR-1 и BR-6."""
     data = payload.model_dump()
-    check_business_rules(data)
-    event = {"id": storage.next_event_id(), **data}
-    storage.EVENTS[event["id"]] = event
+    club = check_business_rules(session, data)
+    if not club.organizers:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "У клуба нет организатора")
+    # Входа в систему пока нет: автором считаем первого организатора клуба.
+    # Когда появится вход, автором станет текущий пользователь.
+    event = Event(**data, author=club.organizers[0])
+    session.add(event)
+    commit_or_409(session)
     return event
 
 
@@ -94,17 +129,20 @@ def create_event(payload: EventCreate):
     responses={**NOT_FOUND, **CONFLICT},
     summary="Изменить мероприятие",
 )
-def update_event(event_id: int, payload: EventUpdate):
+def update_event(event_id: int, payload: EventUpdate, session: SessionDep):
     """Меняет только переданные поля. Результат проверяется по тем же правилам, что и при создании."""
-    event = get_event_or_404(event_id)
-    merged = {**event, **payload.model_dump(exclude_unset=True)}
+    event = get_event_or_404(session, event_id)
+    current = {name: getattr(event, name) for name in EventCreate.model_fields}
+    merged = {**current, **payload.model_dump(exclude_unset=True)}
     try:
         checked = EventCreate.model_validate(merged).model_dump()
     except ValidationError as exc:
         errors = exc.errors(include_url=False, include_context=False, include_input=False)
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, errors) from exc
-    check_business_rules(checked, event_id=event_id)
-    event.update(checked)
+    check_business_rules(session, checked, event_id=event_id)
+    for name, value in checked.items():
+        setattr(event, name, value)
+    commit_or_409(session)
     return event
 
 
@@ -114,6 +152,6 @@ def update_event(event_id: int, payload: EventUpdate):
     responses=NOT_FOUND,
     summary="Удалить мероприятие",
 )
-def delete_event(event_id: int):
-    get_event_or_404(event_id)
-    del storage.EVENTS[event_id]
+def delete_event(event_id: int, session: SessionDep):
+    session.delete(get_event_or_404(session, event_id))
+    session.commit()

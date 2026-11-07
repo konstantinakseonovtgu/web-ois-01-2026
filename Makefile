@@ -42,13 +42,16 @@ bd-up:
 psql:
 	docker compose exec db psql -U webois -d webois
 
-db-schema:
-	docker compose exec db psql -U webois -d webois -v ON_ERROR_STOP=1 -f /db/schema.sql
+migrate:
+	docker compose exec api alembic upgrade head
+
+migration:
+	docker compose exec api alembic revision --autogenerate -m "$(m)"
 
 db-drop:
 	docker compose exec db psql -U webois -d webois -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 
 db-seed:
-	docker compose exec db psql -U webois -d webois -v ON_ERROR_STOP=1 -f /db/seed.sql
+	docker compose exec api python -m app.seed
 
 db-reset: db-drop db-schema db-seed

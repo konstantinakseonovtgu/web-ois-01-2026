@@ -4,8 +4,11 @@ version = "0.1.0"
 description = "API студ афиши"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.20.1",
     "fastapi[standard]==0.143.0",
-    "pedantic==3.0.5"
+    "pedantic==3.0.5",
+    "psycopg[binary]>=3.3.6",
+    "sqlalchemy>=2.1.6",
 ]
 
 [build-system]
