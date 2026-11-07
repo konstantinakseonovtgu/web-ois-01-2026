@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.auth import CurrentUser, ensure_can_manage
 from app.db import SessionDep, violated_constraint
 from app.models import Club, Event, Room
 from app.schemas import ErrorResponse, EventCreate, EventPage, EventRead, EventUpdate
@@ -15,6 +16,11 @@ router = APIRouter(prefix="/api/events", tags=["Мероприятия"])
 
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Мероприятие не найдено"}}
 CONFLICT = {409: {"model": ErrorResponse, "description": "Нарушено бизнес-правило (BR-1, BR-6)"}}
+
+FORBIDDEN = {
+    401: {"model": ErrorResponse, "description": "Не выполнен вход"},
+    403: {"model": ErrorResponse, "description": "Нет прав на мероприятия этого клуба (BR-8)"},
+}
 
 TOMSK = timezone(timedelta(hours=7))  # часовой пояс вуза: границы дат в фильтрах
 ACTIVE = ("pending", "published")     # статусы, при которых мероприятие держит аудиторию
@@ -109,15 +115,11 @@ def get_event(event_id: int, session: SessionDep):
     responses=CONFLICT,
     summary="Создать мероприятие",
 )
-def create_event(payload: EventCreate, session: SessionDep):
-    """Новое мероприятие получает статус «на модерации» (BR-9). Проверяются BR-1 и BR-6."""
+def create_event(payload: EventCreate, user: CurrentUser, session: SessionDep):
     data = payload.model_dump()
     club = check_business_rules(session, data)
-    if not club.organizers:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "У клуба нет организатора")
-    # Входа в систему пока нет: автором считаем первого организатора клуба.
-    # Когда появится вход, автором станет текущий пользователь.
-    event = Event(**data, author=club.organizers[0])
+    ensure_can_manage(user, club)
+    event = Event(**data, author=user)
     session.add(event)
     commit_or_409(session)
     return event
@@ -129,9 +131,9 @@ def create_event(payload: EventCreate, session: SessionDep):
     responses={**NOT_FOUND, **CONFLICT},
     summary="Изменить мероприятие",
 )
-def update_event(event_id: int, payload: EventUpdate, session: SessionDep):
-    """Меняет только переданные поля. Результат проверяется по тем же правилам, что и при создании."""
+def update_event(event_id: int, payload: EventUpdate, user: CurrentUser, session: SessionDep):
     event = get_event_or_404(session, event_id)
+    ensure_can_manage(user, event.club)
     current = {name: getattr(event, name) for name in EventCreate.model_fields}
     merged = {**current, **payload.model_dump(exclude_unset=True)}
     try:
@@ -152,6 +154,8 @@ def update_event(event_id: int, payload: EventUpdate, session: SessionDep):
     responses=NOT_FOUND,
     summary="Удалить мероприятие",
 )
-def delete_event(event_id: int, session: SessionDep):
-    session.delete(get_event_or_404(session, event_id))
+def delete_event(event_id: int, user: CurrentUser, session: SessionDep):
+    event = get_event_or_404(session, event_id)
+    ensure_can_manage(user, event.club)
+    session.delete(event)
     session.commit()

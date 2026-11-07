@@ -13,8 +13,8 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 COPY pyproject.toml uv.lock .python-version ./
-# RUN pip install --no-cache-dir .
 RUN uv sync --frozen
+RUN uv pip install --python /opt/venv/bin/python pip
 
 COPY . .
 

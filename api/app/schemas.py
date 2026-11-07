@@ -1,4 +1,4 @@
-from pydantic import AwareDatetime, BaseModel, Field, model_validator, ConfigDict
+from pydantic import AwareDatetime, BaseModel, EmailStr, Field, model_validator, ConfigDict
 
 
 class Club(BaseModel):
@@ -60,3 +60,36 @@ class EventPage(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str = Field(examples=["Мероприятие не найдено"])
+
+class RegistrationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    event_id: int
+    user_id: int
+    status: str
+    created_at: AwareDatetime
+
+
+class Participant(BaseModel):
+    user_id: int
+    full_name: str
+    email: str
+    created_at: AwareDatetime
+
+class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    full_name: str
+    role: str
+
+class RegisterRequest(BaseModel):
+    email: EmailStr = Field(examples=["new.student@tsu.ru"])
+    full_name: str = Field(min_length=2, max_length=200, examples=["Иванов Иван"])
+    password: str = Field(min_length=15, max_length=128, examples=["correct password"])
+
+class LoginRequest(BaseModel):
+    email: str = Field(examples=["new.student@tsu.ru"])
+    password: str = Field(examples=["correct password"])

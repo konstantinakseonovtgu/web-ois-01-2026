@@ -48,10 +48,13 @@ migrate:
 migration:
 	docker compose exec api alembic revision --autogenerate -m "$(m)"
 
+db-seed:
+	docker compose exec api python -m app.seed
+
 db-drop:
 	docker compose exec db psql -U webois -d webois -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 
 db-seed:
 	docker compose exec api python -m app.seed
 
-db-reset: db-drop db-schema db-seed
+db-reset: db-drop migrate db-seed

@@ -43,6 +43,9 @@ class User(Base):
         secondary=club_organizers, back_populates="organizers"
     )
 
+    def __str__(self) -> str:
+        return f"{self.full_name} <{self.email}>"
+
 
 class Club(Base):
     __tablename__ = "clubs"
@@ -56,6 +59,9 @@ class Club(Base):
         secondary=club_organizers, back_populates="clubs"
     )
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -65,6 +71,9 @@ class Room(Base):
     name: Mapped[str] = mapped_column(unique=True)
     building: Mapped[str]
     capacity: Mapped[int] = mapped_column(Integer)  # integer, а не bigint: число мест
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class Event(Base):
@@ -103,6 +112,9 @@ class Event(Base):
     room: Mapped[Room] = relationship()
     author: Mapped[User] = relationship()
 
+    def __str__(self) -> str:
+        return self.title
+
 
 class Registration(Base):
     __tablename__ = "registrations"
@@ -124,4 +136,15 @@ class Registration(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     event: Mapped[Event] = relationship()
+    user: Mapped[User] = relationship()
+
+class AuthSession(Base):
+    __tablename__ = "session"
+
+    id: Mapped[int] = mapped_column(Identity(always=True), primary_key=True)
+    token_hash: Mapped[str] = mapped_column(unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    expires_at: Mapped[datetime]
+
     user: Mapped[User] = relationship()
