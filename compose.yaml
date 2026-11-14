@@ -27,5 +27,20 @@ services:
       timeout: 3s
       retries: 10
 
+  web:
+    build: ./web
+    image: web-ois-web:local
+    container_name: web-ois-web
+    command: npx nuxt dev --host 0.0.0.0 --port 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.nuxt
+    env_file: .env
+    depends_on:
+      - api
+
 volumes:
   db-data:

@@ -1,0 +1,20 @@
+# Сборка и кеши Nuxt
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+
+# Зависимости
+node_modules
+
+# Логи
+logs
+*.log
+
+# Локальные настройки
+.DS_Store
+.env
+.env.*
+!.env.example

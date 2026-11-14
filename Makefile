@@ -58,3 +58,20 @@ db-seed:
 	docker compose exec api python -m app.seed
 
 db-reset: db-drop migrate db-seed
+
+# FRONT
+
+web-deps:
+	cd web && npm install
+
+web-logs:
+	docker compose logs -f web
+
+web-shell:
+	docker compose exec web sh
+
+web-sync:
+	docker compose up -d --build --renew-anon-volumes web
+
+web-lock:
+	docker compose run --rm --no-deps web npm install --package-lock-only
