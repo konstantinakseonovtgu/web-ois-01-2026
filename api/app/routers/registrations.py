@@ -82,3 +82,28 @@ def list_participants(event_id: int, user: CurrentUser, session: SessionDep):
         {"user_id": u.id, "full_name": u.full_name, "email": u.email, "created_at": r.created_at}
         for r, u in rows
     ]
+
+@router.delete(
+    "/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **UNAUTHORIZED,
+        404: {"model": ErrorResponse, "description": "Активной записи нет"},
+        409: {"model": ErrorResponse, "description": "Мероприятие уже началось (BR-5)"},
+    },
+    summary="Отменить свою запись",
+)
+def cancel_my_registration(event_id: int, user: CurrentUser, session: SessionDep):
+    registration = session.scalars(
+        select(Registration).where(
+            Registration.event_id == event_id,
+            Registration.user_id == user.id,
+            Registration.status == "active",
+            )
+    ).first()
+    if registration is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Вы не записаны на это мероприятие")
+    if registration.event.starts_at <= datetime.now(timezone.utc):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Мероприятие уже началось — отменить запись нельзя")
+    registration.status = "cancelled"
+    session.commit()

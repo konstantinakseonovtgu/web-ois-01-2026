@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload, with_expression
 
-from app.auth import CurrentUser, ensure_can_manage
+from app.auth import CurrentUser,  OptionalUser, can_manage, ensure_can_manage
 from app.db import SessionDep, violated_constraint
 from app.models import Club, Event, Registration, Room
 from app.schemas import ErrorResponse, EventCreate, EventPage, EventRead, EventUpdate
@@ -123,8 +123,11 @@ def list_events(
 
 
 @router.get("/{event_id}", response_model=EventRead, responses=NOT_FOUND, summary="Одно мероприятие")
-def get_event(event_id: int, session: SessionDep):
-    return load_for_read(session, event_id)
+def get_event(event_id: int, user: OptionalUser, session: SessionDep):
+    event = load_for_read(session, event_id)
+    if event.status != "published" and not can_manage(user, event.club):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Мероприятие не найдено")
+    return event
 
 
 @router.post(

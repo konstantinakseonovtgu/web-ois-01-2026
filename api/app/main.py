@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.routers import auth, registrations, catalog, events, system
+from app.routers import auth, registrations, catalog, events, me, system
 from app.admin import setup_admin
 
 TAGS = [
@@ -12,7 +12,7 @@ TAGS = [
 app = FastAPI(
     title="WEB-ОИС API",
     description="API студенческой афиши мероприятий. Бизнес-правила BR-1…BR-10 — в docs/tz.md.",
-    version="0.2.0",
+    version="0.5.0",
     openapi_tags=TAGS,
 )
 
@@ -21,5 +21,6 @@ app.include_router(catalog.router)
 app.include_router(events.router)
 app.include_router(auth.router)
 app.include_router(registrations.router)
+app.include_router(me.router)
 
 setup_admin(app)

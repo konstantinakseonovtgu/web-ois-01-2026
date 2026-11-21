@@ -30,15 +30,12 @@ class EventBase(BaseModel):
 class EventCreate(EventBase):
     @model_validator(mode="after")
     def check_time_order(self):
-        # BR-7: окончание позже начала
         if self.ends_at <= self.starts_at:
             raise ValueError("Время окончания должно быть позже времени начала")
         return self
 
 
 class EventUpdate(BaseModel):
-    """Все поля необязательны: меняется только то, что прислали."""
-
     title: str | None = Field(default=None, min_length=3, max_length=200)
     description: str | None = Field(default=None, max_length=5000)
     room_id: int | None = None
@@ -87,6 +84,16 @@ class UserRead(BaseModel):
     email: str
     full_name: str
     role: str
+    clubs: list[Club] = Field(description="Клубы, которые ведёт организатор; у студента — пусто")
+
+class MyRegistration(BaseModel):
+    registration_id: int
+    event_id: int
+    title: str
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+    club: Club
+    room: Room
 
 class RegisterRequest(BaseModel):
     email: EmailStr = Field(examples=["new.student@tsu.ru"])
