@@ -1,4 +1,4 @@
-from pydantic import AwareDatetime, BaseModel, EmailStr, Field, model_validator, ConfigDict
+from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class Club(BaseModel):
@@ -48,7 +48,13 @@ class EventUpdate(BaseModel):
 
 
 class EventRead(EventBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
+    status: str = Field(examples=["published"])
+    club: Club
+    room: Room
+    free_seats: int = Field(examples=[12], description="Лимит минус активные записи")
 
 
 class EventPage(BaseModel):
@@ -57,9 +63,6 @@ class EventPage(BaseModel):
     page: int
     size: int
 
-
-class ErrorResponse(BaseModel):
-    detail: str = Field(examples=["Мероприятие не найдено"])
 
 class RegistrationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -87,9 +90,14 @@ class UserRead(BaseModel):
 
 class RegisterRequest(BaseModel):
     email: EmailStr = Field(examples=["new.student@tsu.ru"])
-    full_name: str = Field(min_length=2, max_length=200, examples=["Иванов Иван"])
-    password: str = Field(min_length=15, max_length=128, examples=["correct password"])
+    full_name: str = Field(min_length=2, max_length=200, examples=["Мария Новикова"])
+    password: str = Field(min_length=15, max_length=128, examples=["correct horse battery"])
+
 
 class LoginRequest(BaseModel):
-    email: str = Field(examples=["new.student@tsu.ru"])
-    password: str = Field(examples=["correct password"])
+    email: str = Field(examples=["anna@web-ois.local"])
+    password: str = Field(examples=["webois-demo"])
+
+
+class ErrorResponse(BaseModel):
+    detail: str = Field(examples=["Мероприятие не найдено"])

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -11,8 +11,11 @@ TOMSK = timezone(timedelta(hours=7))
 DEMO_PASSWORD = "webois-demo"
 
 
-def nov(day: int, hour: int, minute: int = 0) -> datetime:
-    return datetime(2026, 11, day, hour, minute, tzinfo=TOMSK)
+TODAY = datetime.now(TOMSK).date()
+
+
+def in_days(days: int, hour: int, minute: int = 0) -> datetime:
+    return datetime.combine(TODAY + timedelta(days=days), time(hour, minute), TOMSK)
 
 
 def main() -> None:
@@ -46,29 +49,54 @@ def main() -> None:
         yandex = Event(
             club=it_club, room=r214, author=irina, title="Как устроен поиск Яндекса",
             description="Лекция выпускника о поисковых системах",
-            starts_at=nov(20, 18), ends_at=nov(20, 20), capacity=40, status="published",
+            starts_at=in_days(5, 18), ends_at=in_days(5, 20), capacity=40, status="published",
         )
         tournament = Event(
             club=chess, room=r101, author=gleb, title="Турнир по шахматам",
             description="Блиц, контроль 5+3",
-            starts_at=nov(22, 12), ends_at=nov(22, 16), capacity=64, status="published",
+            starts_at=in_days(7, 12), ends_at=in_days(7, 16), capacity=64, status="published",
         )
         git = Event(
             club=it_club, room=cowork, author=irina, title="Мастер-класс: Git без боли",
             description="Ветки, слияния и как не потерять работу",
-            starts_at=nov(24, 17), ends_at=nov(24, 19), capacity=2, status="published",
+            starts_at=in_days(9, 17), ends_at=in_days(9, 19), capacity=2, status="published",
         )
         stalker = Event(
             club=cinema, room=r214, author=irina, title="Кино: «Сталкер»",
             description="Показ и обсуждение",
-            starts_at=nov(27, 18), ends_at=nov(27, 20, 45), capacity=40, status="pending",
+            starts_at=in_days(12, 18), ends_at=in_days(12, 20, 45), capacity=40, status="pending",
         )
         cancelled = Event(
             club=chess, room=r214, author=gleb, title="Разбор партий чемпионата",
             description="Отменено: лектор заболел",
-            starts_at=nov(20, 18, 30), ends_at=nov(20, 19, 30), capacity=30, status="cancelled",
+            starts_at=in_days(5, 18, 30), ends_at=in_days(5, 19, 30), capacity=30, status="cancelled",
         )
         session.add_all([yandex, tournament, git, stalker, cancelled])
+        session.flush()
+
+        session.add_all([
+            Event(club=it_club, room=cowork, author=irina, title="Разбор резюме джунов",
+                  description="Приносите резюме — разберём, что в нём читают первым",
+                  starts_at=in_days(3, 17), ends_at=in_days(3, 18, 30), capacity=20, status="published"),
+            Event(club=it_club, room=r214, author=irina, title="Docker за один вечер",
+                  description="От первого контейнера до compose с базой",
+                  starts_at=in_days(14, 18), ends_at=in_days(14, 20), capacity=35, status="published"),
+            Event(club=chess, room=r101, author=gleb, title="Сеанс одновременной игры",
+                  description="Мастер играет с тридцатью соперниками сразу",
+                  starts_at=in_days(15, 15), ends_at=in_days(15, 18), capacity=30, status="published"),
+            Event(club=cinema, room=r214, author=irina, title="Кино: «Солярис»",
+                  description="Показ и обсуждение",
+                  starts_at=in_days(19, 18), ends_at=in_days(19, 20, 50), capacity=40, status="published"),
+            Event(club=chess, room=cowork, author=gleb, title="Мат в два хода",
+                  description="Решаем задачи на время, призы — шоколадки",
+                  starts_at=in_days(21, 16), ends_at=in_days(21, 18), capacity=25, status="published"),
+            Event(club=it_club, room=r101, author=irina, title="Хакатон: финал",
+                  description="Защита проектов команд перед жюри",
+                  starts_at=in_days(26, 10), ends_at=in_days(26, 20), capacity=100, status="published"),
+            Event(club=cinema, room=r214, author=irina, title="Студенческий короткий метр",
+                  description="Фильмы студентов вуза и разговор с авторами",
+                  starts_at=in_days(28, 19), ends_at=in_days(28, 21), capacity=40, status="published"),
+        ])
 
         session.add_all([
             Registration(event=yandex, user=anna),
@@ -78,7 +106,7 @@ def main() -> None:
         ])
 
         session.commit()
-        print("Демо-данные загружены: 7 пользователей, 3 клуба, 3 аудитории, 5 мероприятий, 4 записи")
+        print("Демо-данные загружены: 7 пользователей, 3 клуба, 3 аудитории, 12 мероприятий, 4 записи")
         print(f"Пароль всех демо-пользователей: {DEMO_PASSWORD}")
 
 

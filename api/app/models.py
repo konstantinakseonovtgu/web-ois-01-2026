@@ -12,7 +12,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import ExcludeConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
 
 from app.db import Base
 
@@ -112,6 +112,8 @@ class Event(Base):
     room: Mapped[Room] = relationship()
     author: Mapped[User] = relationship()
 
+    free_seats: Mapped[int | None] = query_expression()
+
     def __str__(self) -> str:
         return self.title
 
@@ -139,7 +141,7 @@ class Registration(Base):
     user: Mapped[User] = relationship()
 
 class AuthSession(Base):
-    __tablename__ = "session"
+    __tablename__ = "sessions"
 
     id: Mapped[int] = mapped_column(Identity(always=True), primary_key=True)
     token_hash: Mapped[str] = mapped_column(unique=True)

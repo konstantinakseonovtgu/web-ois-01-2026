@@ -21,7 +21,7 @@ const when = computed(() =>
 )
 
 const description = computed(() =>
-  event.value ? `${when.value}, ${event.value.room.name}. ${event.value.description}` : '',
+  event.value ? `${when.value}, ${event.value.room?.name}. ${event.value.description}` : '',
 )
 
 useSeoMeta({
@@ -43,14 +43,14 @@ useSeoMeta({
 <template>
   <article v-if="event" class="event">
     <NuxtLink to="/" class="back">← Вся афиша</NuxtLink>
-    <p class="card__club">{{ event.club.name }}</p>
+    <p class="card__club">{{ event.club?.name }}</p>
     <h1>{{ event.title }}</h1>
 
     <dl class="facts">
       <dt>Когда</dt>
       <dd>{{ when }}</dd>
       <dt>Где</dt>
-      <dd>{{ event.room.name }}, {{ event.room.building }}</dd>
+      <dd>{{ event.room?.name }}, {{ event.room?.building }}</dd>
       <dt>Места</dt>
       <dd class="seats" :class="{ 'seats--none': event.free_seats <= 0 }">
         {{ seatsLabel(event.free_seats) }} из {{ event.capacity }}

@@ -5,29 +5,48 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload, with_expression
 
 from app.auth import CurrentUser, ensure_can_manage
 from app.db import SessionDep, violated_constraint
-from app.models import Club, Event, Room
+from app.models import Club, Event, Registration, Room
 from app.schemas import ErrorResponse, EventCreate, EventPage, EventRead, EventUpdate
 
 router = APIRouter(prefix="/api/events", tags=["Мероприятия"])
 
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Мероприятие не найдено"}}
 CONFLICT = {409: {"model": ErrorResponse, "description": "Нарушено бизнес-правило (BR-1, BR-6)"}}
-
 FORBIDDEN = {
     401: {"model": ErrorResponse, "description": "Не выполнен вход"},
     403: {"model": ErrorResponse, "description": "Нет прав на мероприятия этого клуба (BR-8)"},
 }
 
-TOMSK = timezone(timedelta(hours=7))  # часовой пояс вуза: границы дат в фильтрах
-ACTIVE = ("pending", "published")     # статусы, при которых мероприятие держит аудиторию
+TOMSK = timezone(timedelta(hours=7))
+ACTIVE = ("pending", "published")
+
+TAKEN = (
+    select(func.count())
+    .where(Registration.event_id == Event.id, Registration.status == "active")
+    .correlate(Event)
+    .scalar_subquery()
+)
+
+FOR_READ = (
+    selectinload(Event.club),
+    selectinload(Event.room),
+    with_expression(Event.free_seats, Event.capacity - TAKEN),
+)
 
 
 def get_event_or_404(session: Session, event_id: int) -> Event:
     event = session.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Мероприятие не найдено")
+    return event
+
+
+def load_for_read(session: Session, event_id: int) -> Event:
+    event = session.get(Event, event_id, options=FOR_READ, populate_existing=True)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Мероприятие не найдено")
     return event
@@ -52,7 +71,7 @@ def check_business_rules(session: Session, data: dict, event_id: int | None = No
         Event.status.in_(ACTIVE),
         Event.starts_at < data["ends_at"],
         Event.ends_at > data["starts_at"],
-        )
+    )
     if event_id is not None:
         query = query.where(Event.id != event_id)
     other = session.scalars(query.limit(1)).first()
@@ -80,12 +99,12 @@ def commit_or_409(session: Session) -> None:
 
 @router.get("", response_model=EventPage, summary="Афиша")
 def list_events(
-        session: SessionDep,
-        club_id: Annotated[int | None, Query(description="Только мероприятия этого клуба")] = None,
-        date_from: Annotated[date | None, Query(description="Начиная с даты, включительно")] = None,
-        date_to: Annotated[date | None, Query(description="По дату, включительно")] = None,
-        page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
-        size: Annotated[int, Query(ge=1, le=100, description="Мероприятий на странице")] = 20,
+    session: SessionDep,
+    club_id: Annotated[int | None, Query(description="Только мероприятия этого клуба")] = None,
+    date_from: Annotated[date | None, Query(description="Начиная с даты, включительно")] = None,
+    date_to: Annotated[date | None, Query(description="По дату, включительно")] = None,
+    page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
+    size: Annotated[int, Query(ge=1, le=100, description="Мероприятий на странице")] = 20,
 ):
     query = select(Event).where(Event.status == "published")
     if club_id is not None:
@@ -98,21 +117,21 @@ def list_events(
 
     total = session.scalar(select(func.count()).select_from(query.subquery()))
     items = session.scalars(
-        query.order_by(Event.starts_at, Event.id).offset((page - 1) * size).limit(size)
+        query.options(*FOR_READ).order_by(Event.starts_at, Event.id).offset((page - 1) * size).limit(size)
     ).all()
     return {"items": items, "total": total, "page": page, "size": size}
 
 
 @router.get("/{event_id}", response_model=EventRead, responses=NOT_FOUND, summary="Одно мероприятие")
 def get_event(event_id: int, session: SessionDep):
-    return get_event_or_404(session, event_id)
+    return load_for_read(session, event_id)
 
 
 @router.post(
     "",
     response_model=EventRead,
     status_code=status.HTTP_201_CREATED,
-    responses=CONFLICT,
+    responses={**CONFLICT, **FORBIDDEN},
     summary="Создать мероприятие",
 )
 def create_event(payload: EventCreate, user: CurrentUser, session: SessionDep):
@@ -122,13 +141,13 @@ def create_event(payload: EventCreate, user: CurrentUser, session: SessionDep):
     event = Event(**data, author=user)
     session.add(event)
     commit_or_409(session)
-    return event
+    return load_for_read(session, event.id)
 
 
 @router.patch(
     "/{event_id}",
     response_model=EventRead,
-    responses={**NOT_FOUND, **CONFLICT},
+    responses={**NOT_FOUND, **CONFLICT, **FORBIDDEN},
     summary="Изменить мероприятие",
 )
 def update_event(event_id: int, payload: EventUpdate, user: CurrentUser, session: SessionDep):
@@ -145,13 +164,13 @@ def update_event(event_id: int, payload: EventUpdate, user: CurrentUser, session
     for name, value in checked.items():
         setattr(event, name, value)
     commit_or_409(session)
-    return event
+    return load_for_read(session, event_id)
 
 
 @router.delete(
     "/{event_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=NOT_FOUND,
+    responses={**NOT_FOUND, **FORBIDDEN},
     summary="Удалить мероприятие",
 )
 def delete_event(event_id: int, user: CurrentUser, session: SessionDep):
