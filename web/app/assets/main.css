@@ -69,3 +69,44 @@ a { color: var(--accent-ink); }
   font: inherit; padding: 10px 20px; border: 0; border-radius: var(--radius);
   background: var(--ink); color: #f5f9fc; cursor: pointer;
 }
+
+.header__inner { flex-wrap: wrap; }
+.header__nav { margin-left: auto; display: flex; align-items: baseline; gap: 20px; }
+.header__nav a { color: #f5f9fc; }
+.header__user { color: #8fa8bc; }
+.header__logout {
+  font: inherit; color: #f5f9fc; background: none; border: 0; padding: 0;
+  text-decoration: underline; cursor: pointer;
+}
+
+.form { display: flex; flex-direction: column; gap: 16px; max-width: 420px; }
+.form--wide { max-width: 720px; }
+.form__row { display: flex; flex-wrap: wrap; gap: 16px; }
+.form__row .field { flex: 1 1 140px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field span { font-weight: 500; }
+.field input, .field select, .field textarea {
+  font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--ink);
+}
+.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.form__hint { color: var(--muted); margin: 0; }
+.form__error { color: var(--warn); margin: 0; }
+.button:disabled { opacity: 0.6; cursor: default; }
+.button--ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+a.button { display: inline-block; text-decoration: none; }
+
+.my-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.my-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 16px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.my-item p { margin: 4px 0 0; }
+.my-item__title { font-weight: 600; color: var(--ink); text-decoration: none; }
+
+.register { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 24px; }
+.register__status { margin: 0; color: var(--accent-ink); font-weight: 600; }
+.badge {
+  display: inline-block; margin: 0 0 16px; padding: 4px 12px; border-radius: 999px;
+  background: #fdeee6; color: var(--warn); font-weight: 600;
+}

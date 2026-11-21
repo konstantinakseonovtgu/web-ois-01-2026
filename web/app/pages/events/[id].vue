@@ -4,7 +4,7 @@ import type { EventItem } from '~/types/api'
 const route = useRoute()
 const config = useRuntimeConfig()
 
-const { data: event, error } = await useFetch<EventItem>(() => `/api/events/${route.params.id}`)
+const { data: event, error, refresh } = await useFetch<EventItem>(() => `/api/events/${route.params.id}`)
 
 if (error.value) {
   const notFound = error.value.status === 404 || error.value.status === 422
@@ -16,12 +16,18 @@ if (error.value) {
   })
 }
 
+const STATUS: Record<string, string> = {
+  pending: 'На модерации',
+  rejected: 'Отклонено',
+  cancelled: 'Отменено',
+}
+
 const when = computed(() =>
-  event.value ? `${formatDate(event.value.starts_at)}, ${formatTimeRange(event.value.starts_at, event.value.ends_at)}` : '',
+    event.value ? `${formatDate(event.value.starts_at)}, ${formatTimeRange(event.value.starts_at, event.value.ends_at)}` : '',
 )
 
 const description = computed(() =>
-  event.value ? `${when.value}, ${event.value.room?.name}. ${event.value.description}` : '',
+    event.value ? `${when.value}, ${event.value.room.name}. ${event.value.description}` : '',
 )
 
 useSeoMeta({
@@ -58,5 +64,7 @@ useSeoMeta({
     </dl>
 
     <p class="event__description">{{ event.description }}</p>
+
+    <RegisterButton v-if="event.status === 'published'" :event="event" @changed="refresh()" />
   </article>
 </template>

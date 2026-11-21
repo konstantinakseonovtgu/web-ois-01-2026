@@ -16,6 +16,7 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    apiInternalUrl: process.env.API_INTERNAL_URL ?? 'http://localhost:8000',
     public: {
       siteUrl: 'http://localhost:3000',
     },

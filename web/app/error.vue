@@ -3,17 +3,23 @@ import type { NuxtError } from '#app'
 
 const props = defineProps<{ error: NuxtError }>()
 
-const notFound = computed(() => props.error.status === 404)
+const TEXTS: Record<number, { title: string, hint: string }> = {
+  403: { title: 'Сюда нельзя', hint: 'У вашей учётной записи нет прав на эту страницу.' },
+  404: { title: 'Такой страницы нет', hint: 'Возможно, мероприятие удалили или в адресе опечатка.' },
+}
+const text = computed(() =>
+    TEXTS[props.error.status] ?? { title: 'Что-то пошло не так', hint: 'Попробуйте обновить страницу через минуту.' },
+)
 
-useSeoMeta({ title: () => (notFound.value ? 'Страница не найдена' : 'Ошибка') })
+useSeoMeta({ title: () => text.value.title })
 </script>
 
 <template>
   <AppHeader />
   <main class="container main error">
     <p class="error__code">{{ error.status }}</p>
-    <h1>{{ notFound ? 'Такой страницы нет' : 'Что-то пошло не так' }}</h1>
-    <p>{{ notFound ? 'Возможно, мероприятие удалили или в адресе опечатка.' : 'Попробуйте обновить страницу через минуту.' }}</p>
+    <h1>{{ text.title }}</h1>
+    <p>{{ text.hint }}</p>
     <button class="button" @click="clearError({ redirect: '/' })">На афишу</button>
   </main>
 </template>

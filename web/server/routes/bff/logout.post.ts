@@ -1,0 +1,1 @@
+export default defineEventHandler((event) => relayApi(event, '/api/auth/logout', { method: 'POST' }))
